@@ -156,6 +156,29 @@ Pídele algo como: *"cuando necesites confirmación para seguir, avísame con no
 
 ---
 
+## Avisos automáticos en Claude Code (hooks)
+
+Para que el aviso sea **automático y garantizado** (no dependa de que el modelo llame al tool), Claude Code usa *hooks* en `~/.claude/settings.json` que ejecutan `dist/notify-cli.js`:
+
+- **`Notification`** → `notify-cli.js notification` → avisa cuando Claude espera tu respuesta o un permiso.
+- **`Stop`** → `notify-cli.js stop` → avisa cuando Claude termina un turno (queda IDLE). Ojo: dispara al final de **cada** turno.
+
+> Claude Desktop (app de chat) **no** soporta hooks; ahí sólo está disponible el tool `notify_question` vía MCP.
+
+### Silenciar por carpeta (activo por defecto)
+
+Las notificaciones vienen **activas por defecto**. Para silenciarlas en una carpeta/proyecto concreto hay tres slash commands de usuario (`~/.claude/commands/`):
+
+| Comando | Acción |
+| ------- | ------ |
+| `/notify-off`    | Silencia la carpeta actual |
+| `/notify-on`     | Reactiva la carpeta actual |
+| `/notify-status` | Muestra el estado y la lista de carpetas silenciadas |
+
+El estado se guarda en `~/.mcp-notify-state.json` (`{ "mutedDirs": [...] }`). `notify-cli.js` también acepta `mute` / `unmute` / `status [carpeta]` por línea de comandos.
+
+---
+
 ## Notas de seguridad
 
 - El `.env` y la sesión de WhatsApp (`.wwebjs_auth/`) **nunca se commitean** (están en `.gitignore`).
