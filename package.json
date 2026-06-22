@@ -1,0 +1,43 @@
+{
+  "name": "mcp-notify",
+  "version": "0.1.0",
+  "description": "Servidor MCP que envía notificaciones (WhatsApp / Telegram) cuando Claude necesita hacer una pregunta bloqueante.",
+  "type": "module",
+  "bin": {
+    "mcp-notify": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "setup": "tsx src/index.ts --setup"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "notifications",
+    "whatsapp",
+    "telegram"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "dotenv": "^16.4.5",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.26.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
