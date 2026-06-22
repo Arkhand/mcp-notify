@@ -1,19 +1,20 @@
 #!/usr/bin/env node
 /**
- * CLI de notificación para los HOOKS de Claude Code, con silenciado por carpeta.
+ * CLI de notificación para los HOOKS de Claude Code, con silenciado por carpeta
+ * (permanente o temporal con auto-reactivación).
  *
  * Eventos (los disparan los hooks, leen el JSON del hook por stdin):
  *   node dist/notify-cli.js stop           -> "Claude terminó"
  *   node dist/notify-cli.js notification   -> "Claude necesita tu atención"
  *   node dist/notify-cli.js "texto libre"  -> envía ese texto tal cual
  *
- * Gestión del silenciado (las usan los slash commands /notify-off /notify-on /notify-status):
- *   node dist/notify-cli.js mute   [carpeta]   -> silencia esa carpeta (por defecto la actual)
- *   node dist/notify-cli.js unmute [carpeta]   -> reactiva esa carpeta
- *   node dist/notify-cli.js status [carpeta]   -> muestra el estado
+ * Gestión del silenciado (las usan los slash commands):
+ *   node dist/notify-cli.js mute             [carpeta]   -> silencia indefinidamente
+ *   node dist/notify-cli.js mute-min <min>   [carpeta]   -> silencia <min> minutos (se reactiva solo)
+ *   node dist/notify-cli.js unmute           [carpeta]   -> reactiva
+ *   node dist/notify-cli.js status           [carpeta]   -> muestra el estado
  *
- * Las notificaciones vienen ACTIVAS por defecto; sólo se silencian las carpetas
- * que estén en el archivo de estado (~/.mcp-notify-state.json).
+ * Activo por defecto; sólo se silencian las carpetas del estado (~/.mcp-notify-state.json).
  */
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -23,8 +24,13 @@ import { createProvider } from "./providers/index.js";
 
 const STATE_PATH = join(homedir(), ".mcp-notify-state.json");
 
+/** until: null = permanente; número = epoch ms hasta el que está silenciado. */
+interface MuteEntry {
+  dir: string;
+  until: number | null;
+}
 interface State {
-  mutedDirs: string[];
+  mutes: MuteEntry[];
 }
 
 interface HookInput {
@@ -38,27 +44,57 @@ function normalizeDir(dir: string): string {
   return d;
 }
 
+interface LegacyState {
+  mutedDirs?: unknown;
+  mutes?: unknown;
+}
+
 function loadState(): State {
   try {
     if (existsSync(STATE_PATH)) {
-      const raw = JSON.parse(readFileSync(STATE_PATH, "utf8")) as Partial<State>;
+      const raw = JSON.parse(readFileSync(STATE_PATH, "utf8")) as LegacyState;
+      if (Array.isArray(raw.mutes)) {
+        const mutes = (raw.mutes as unknown[])
+          .filter((m): m is MuteEntry => !!m && typeof (m as MuteEntry).dir === "string")
+          .map((m) => ({ dir: m.dir, until: typeof m.until === "number" ? m.until : null }));
+        return { mutes };
+      }
+      // Migración del formato antiguo { mutedDirs: string[] }.
       if (Array.isArray(raw.mutedDirs)) {
-        return { mutedDirs: raw.mutedDirs.filter((d): d is string => typeof d === "string") };
+        const mutes = (raw.mutedDirs as unknown[])
+          .filter((d): d is string => typeof d === "string")
+          .map((d) => ({ dir: d, until: null as number | null }));
+        return { mutes };
       }
     }
   } catch {
-    /* estado corrupto o inexistente: tratamos como vacío */
+    /* estado corrupto o inexistente: vacío */
   }
-  return { mutedDirs: [] };
+  return { mutes: [] };
+}
+
+/** Elimina las entradas temporales ya vencidas. */
+function pruneExpired(state: State, now: number): State {
+  return { mutes: state.mutes.filter((m) => m.until === null || m.until > now) };
 }
 
 function saveState(state: State): void {
   writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), "utf8");
 }
 
-function isMuted(dir: string): boolean {
+function activeMuteFor(dir: string, now: number): MuteEntry | undefined {
   const target = normalizeDir(dir);
-  return loadState().mutedDirs.some((d) => normalizeDir(d) === target);
+  return loadState().mutes.find(
+    (m) => normalizeDir(m.dir) === target && (m.until === null || m.until > now),
+  );
+}
+
+function formatRemaining(until: number, now: number): string {
+  const mins = Math.max(0, Math.round((until - now) / 60000));
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
 }
 
 function safeParse(raw: string): HookInput | null {
@@ -71,49 +107,78 @@ function safeParse(raw: string): HookInput | null {
 
 async function readStdinJson(): Promise<HookInput | null> {
   if (process.stdin.isTTY) return null;
-  return await new Promise<HookInput | null>((resolve) => {
+  return await new Promise<HookInput | null>((resolveStdin) => {
     let data = "";
-    const timer = setTimeout(() => resolve(safeParse(data)), 800);
+    const timer = setTimeout(() => resolveStdin(safeParse(data)), 800);
     process.stdin.on("data", (chunk) => {
       data += chunk;
     });
     process.stdin.on("end", () => {
       clearTimeout(timer);
-      resolve(safeParse(data));
+      resolveStdin(safeParse(data));
     });
     process.stdin.on("error", () => {
       clearTimeout(timer);
-      resolve(null);
+      resolveStdin(null);
     });
   });
 }
 
 function handleManagementCommand(event: string): void {
+  const now = Date.now();
+
+  if (event === "mute-min") {
+    const minutes = Number.parseInt(process.argv[3] ?? "", 10);
+    const target = process.argv[4] ?? process.cwd();
+    const dir = normalizeDir(target);
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      process.stderr.write("[notify-cli] mute-min requiere un número de minutos > 0.\n");
+      process.exit(1);
+    }
+    const until = now + minutes * 60000;
+    const state = pruneExpired(loadState(), now);
+    state.mutes = state.mutes.filter((m) => normalizeDir(m.dir) !== dir);
+    state.mutes.push({ dir, until });
+    saveState(state);
+    process.stdout.write(
+      `🔕 Notificaciones SILENCIADAS por ${formatRemaining(until, now)} (se reactivan solas) en:\n   ${dir}\n`,
+    );
+    return;
+  }
+
   const target = process.argv[3] ?? process.cwd();
   const dir = normalizeDir(target);
-  const state = loadState();
+  const state = pruneExpired(loadState(), now);
 
   if (event === "mute") {
-    if (!state.mutedDirs.some((d) => normalizeDir(d) === dir)) {
-      state.mutedDirs.push(dir);
-      saveState(state);
-    }
-    process.stdout.write(`🔕 Notificaciones SILENCIADAS para esta carpeta:\n   ${dir}\n`);
-  } else if (event === "unmute") {
-    const before = state.mutedDirs.length;
-    state.mutedDirs = state.mutedDirs.filter((d) => normalizeDir(d) !== dir);
+    state.mutes = state.mutes.filter((m) => normalizeDir(m.dir) !== dir);
+    state.mutes.push({ dir, until: null });
     saveState(state);
-    const changed = before !== state.mutedDirs.length;
+    process.stdout.write(`🔕 Notificaciones SILENCIADAS (sin límite) en:\n   ${dir}\n`);
+  } else if (event === "unmute") {
+    const before = state.mutes.length;
+    state.mutes = state.mutes.filter((m) => normalizeDir(m.dir) !== dir);
+    saveState(state);
+    const changed = before !== state.mutes.length;
     process.stdout.write(
-      `🔔 Notificaciones ACTIVADAS para esta carpeta${changed ? "" : " (ya estaban activas)"}:\n   ${dir}\n`,
+      `🔔 Notificaciones ACTIVADAS${changed ? "" : " (ya estaban activas)"} en:\n   ${dir}\n`,
     );
   } else {
     // status
-    process.stdout.write(
-      `Estado de esta carpeta: ${isMuted(target) ? "🔕 silenciada" : "🔔 activa (por defecto)"}\n   ${dir}\n`,
-    );
-    if (state.mutedDirs.length > 0) {
-      process.stdout.write(`\nCarpetas silenciadas:\n${state.mutedDirs.map((d) => `   - ${d}`).join("\n")}\n`);
+    const mine = state.mutes.find((m) => normalizeDir(m.dir) === dir);
+    const label = !mine
+      ? "🔔 activa (por defecto)"
+      : mine.until === null
+        ? "🔕 silenciada (sin límite)"
+        : `🔕 silenciada (vuelve en ${formatRemaining(mine.until, now)})`;
+    process.stdout.write(`Estado de esta carpeta: ${label}\n   ${dir}\n`);
+    saveState(state); // de paso limpia vencidas
+    if (state.mutes.length > 0) {
+      const lines = state.mutes.map((m) => {
+        const extra = m.until === null ? "sin límite" : `vuelve en ${formatRemaining(m.until, now)}`;
+        return `   - ${m.dir} (${extra})`;
+      });
+      process.stdout.write(`\nCarpetas silenciadas:\n${lines.join("\n")}\n`);
     } else {
       process.stdout.write(`\nNo hay ninguna carpeta silenciada.\n`);
     }
@@ -161,8 +226,7 @@ async function main(): Promise<void> {
   const arg = (process.argv[2] ?? "").trim();
   const event = arg.toLowerCase();
 
-  // Subcomandos de gestión (no envían nada, no leen stdin).
-  if (event === "mute" || event === "unmute" || event === "status") {
+  if (event === "mute" || event === "mute-min" || event === "unmute" || event === "status") {
     handleManagementCommand(event);
     return;
   }
@@ -170,9 +234,8 @@ async function main(): Promise<void> {
   const hook = await readStdinJson();
   const projectDir = hook?.cwd && hook.cwd.trim() ? hook.cwd : process.cwd();
 
-  // Si la carpeta está silenciada, no enviamos (salida limpia).
-  if ((event === "stop" || event === "notification") && isMuted(projectDir)) {
-    return;
+  if ((event === "stop" || event === "notification") && activeMuteFor(projectDir, Date.now())) {
+    return; // carpeta silenciada: salida limpia, no se envía
   }
 
   await sendNotification(event, arg, hook);

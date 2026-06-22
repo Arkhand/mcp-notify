@@ -171,11 +171,14 @@ Las notificaciones vienen **activas por defecto**. Para silenciarlas en una carp
 
 | Comando | Acción |
 | ------- | ------ |
-| `/notify-off`    | Silencia la carpeta actual |
-| `/notify-on`     | Reactiva la carpeta actual |
-| `/notify-status` | Muestra el estado y la lista de carpetas silenciadas |
+| `/notify-off`     | Silencia la carpeta actual **sin límite** |
+| `/notify-off-1h`  | Silencia la carpeta actual **1 hora** (se reactiva sola) |
+| `/notify-off-2h`  | Silencia la carpeta actual **2 horas** (se reactiva sola) |
+| `/notify-off-4h`  | Silencia la carpeta actual **4 horas** (se reactiva sola) |
+| `/notify-on`      | Reactiva la carpeta actual |
+| `/notify-status`  | Muestra el estado y la lista de carpetas silenciadas |
 
-El estado se guarda en `~/.mcp-notify-state.json` (`{ "mutedDirs": [...] }`). `notify-cli.js` también acepta `mute` / `unmute` / `status [carpeta]` por línea de comandos.
+El estado se guarda en `~/.mcp-notify-state.json` (`{ "mutes": [{ "dir", "until" }] }`; `until` = epoch ms o `null` para permanente). Los silencios temporales se auto-reactivan: el hook comprueba la hora en cada disparo, sin temporizadores. `notify-cli.js` también acepta `mute` / `mute-min <min>` / `unmute` / `status [carpeta]` por línea de comandos.
 
 ---
 
