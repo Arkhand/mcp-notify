@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { writeFileSync } from "node:fs";
 import wweb from "whatsapp-web.js";
 import qrcode from "qrcode-terminal";
 import type { NotificationProvider } from "./types.js";
@@ -37,11 +38,17 @@ export class WhatsAppProvider implements NotificationProvider {
       rejectReady = reject;
     });
 
+    // Permite apuntar a un Chrome/Chromium ya instalado en vez del que
+    // descarga Puppeteer (útil si esa descarga falla). Se configura con
+    // PUPPETEER_EXECUTABLE_PATH en el .env.
+    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
+
     const client = new Client({
       authStrategy: new LocalAuth({ dataPath: AUTH_PATH }),
       puppeteer: {
         // --no-sandbox ayuda en entornos headless/CI; inofensivo en escritorio.
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        ...(executablePath ? { executablePath } : {}),
       },
     });
     this.client = client;
@@ -53,6 +60,15 @@ export class WhatsAppProvider implements NotificationProvider {
       qrcode.generate(qr, { small: true }, (code: string) => {
         process.stderr.write(`\n${code}\n`);
       });
+      // Persistimos también la cadena cruda para poder regenerar el QR como
+      // imagen si hiciera falta (se ignora cualquier error de escritura).
+      if (process.env.MCP_NOTIFY_QR_FILE) {
+        try {
+          writeFileSync(process.env.MCP_NOTIFY_QR_FILE, qr, "utf8");
+        } catch {
+          /* no crítico */
+        }
+      }
     });
 
     client.once("ready", () => {
