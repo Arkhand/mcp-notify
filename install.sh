@@ -231,29 +231,44 @@ echo "   Para silenciar las notificaciones por carpeta/proyecto usá los"
 echo "   comandos de Claude Code: /notify-off, /notify-off-1h, /notify-off-2h,"
 echo "   /notify-off-4h  y  /notify-on  para reactivar."
 echo ""
-read -r -p "¿Configurar hooks? [y/N] " setup_hooks
-if [[ "${setup_hooks,,}" == "y" ]]; then
+echo "¿Qué hooks querés configurar?"
+echo "  1) Ambos  (recomendado)"
+echo "  2) Solo Stop"
+echo "  3) Solo Notification"
+echo "  4) Ninguno"
+echo ""
+read -r -p "Elegí [1/2/3/4]: " hook_choice
+
+if [[ "$hook_choice" != "4" ]]; then
+  DO_STOP=false
+  DO_NOTIF=false
+  case "$hook_choice" in
+    2) DO_STOP=true ;;
+    3) DO_NOTIF=true ;;
+    *) DO_STOP=true; DO_NOTIF=true ;;
+  esac
+
   HOOKS_FILE="$HOME/.claude/settings.json"
   mkdir -p "$HOME/.claude"
   [[ ! -f "$HOOKS_FILE" ]] && echo '{}' > "$HOOKS_FILE"
 
+  HOOK_STOP='{"matcher":"","hooks":[{"type":"command","command":"node","args":["'"$INSTALL_DIR"'/dist/notify-cli.js","stop"],"async":true,"timeout":20,"statusMessage":"Avisando por Telegram (fin de tarea)…"}]}'
+  HOOK_NOTIF='{"matcher":"","hooks":[{"type":"command","command":"node","args":["'"$INSTALL_DIR"'/dist/notify-cli.js","notification"],"async":true,"timeout":20,"statusMessage":"Avisando por Telegram (atención requerida)…"}]}'
+
   if command -v jq &>/dev/null; then
-    HOOK_STOP='{"matcher":"","hooks":[{"type":"command","command":"node","args":["'"$INSTALL_DIR"'/dist/notify-cli.js","stop"],"async":true,"timeout":20,"statusMessage":"Avisando por Telegram (fin de tarea)…"}]}'
-    HOOK_NOTIF='{"matcher":"","hooks":[{"type":"command","command":"node","args":["'"$INSTALL_DIR"'/dist/notify-cli.js","notification"],"async":true,"timeout":20,"statusMessage":"Avisando por Telegram (atención requerida)…"}]}'
+    JQ_FILTER='.hooks = (.hooks // {})'
+    [[ "$DO_STOP"  == "true" ]] && JQ_FILTER+=' | .hooks.Stop = (.hooks.Stop // []) + [$stop]'
+    [[ "$DO_NOTIF" == "true" ]] && JQ_FILTER+=' | .hooks.Notification = (.hooks.Notification // []) + [$notif]'
     jq \
       --argjson stop "$HOOK_STOP" \
       --argjson notif "$HOOK_NOTIF" \
-      '.hooks = (.hooks // {}) | .hooks.Stop = (.hooks.Stop // []) + [$stop] | .hooks.Notification = (.hooks.Notification // []) + [$notif]' \
+      "$JQ_FILTER" \
       "$HOOKS_FILE" > "$HOOKS_FILE.tmp" && mv "$HOOKS_FILE.tmp" "$HOOKS_FILE"
     echo -e "${G}✓ Hooks configurados en $HOOKS_FILE${N}"
   else
     echo -e "${Y}jq no encontrado — agregá esto en ~/.claude/settings.json bajo \"hooks\":${N}"
-    cat <<HOOKJSON
-
-  "Stop": [{"matcher":"","hooks":[{"type":"command","command":"node","args":["$INSTALL_DIR/dist/notify-cli.js","stop"],"async":true,"timeout":20}]}],
-  "Notification": [{"matcher":"","hooks":[{"type":"command","command":"node","args":["$INSTALL_DIR/dist/notify-cli.js","notification"],"async":true,"timeout":20}]}]
-
-HOOKJSON
+    [[ "$DO_STOP"  == "true" ]] && echo "  \"Stop\": [{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"node\",\"args\":[\"$INSTALL_DIR/dist/notify-cli.js\",\"stop\"],\"async\":true,\"timeout\":20}]}],"
+    [[ "$DO_NOTIF" == "true" ]] && echo "  \"Notification\": [{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"node\",\"args\":[\"$INSTALL_DIR/dist/notify-cli.js\",\"notification\"],\"async\":true,\"timeout\":20}]}],"
   fi
 fi
 
