@@ -217,7 +217,21 @@ fi
 
 # ── 10. Hooks (opcional) ───────────────────────────────────────────────────────
 echo ""
-read -r -p "¿Configurar hooks automáticos (Stop + Notification)? [y/N] " setup_hooks
+echo -e "${B}── Hooks automáticos ──────────────────────────────${N}"
+echo "   Los hooks hacen que Claude te avise sin que tengas que pedírselo:"
+echo ""
+echo "   • Stop         → te notifica cuando Claude termina un turno (quedó"
+echo "                    esperando tu respuesta). Útil para saber que ya"
+echo "                    podés volver a mirar la terminal."
+echo ""
+echo "   • Notification → te notifica cuando Claude necesita que respondas"
+echo "                    algo para poder seguir (pregunta bloqueante)."
+echo ""
+echo "   Para silenciar las notificaciones por carpeta/proyecto usá los"
+echo "   comandos de Claude Code: /notify-off, /notify-off-1h, /notify-off-2h,"
+echo "   /notify-off-4h  y  /notify-on  para reactivar."
+echo ""
+read -r -p "¿Configurar hooks? [y/N] " setup_hooks
 if [[ "${setup_hooks,,}" == "y" ]]; then
   HOOKS_FILE="$HOME/.claude/settings.json"
   mkdir -p "$HOME/.claude"
