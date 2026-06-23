@@ -20,19 +20,30 @@ Si el envío falla, el tool **devuelve el error** (con `isError: true`) en lugar
 
 ---
 
-## Requisitos
+## Instalación rápida (una línea)
 
-- **Node.js >= 18.17** (usa `fetch` nativo).
-- Para WhatsApp, `whatsapp-web.js` descarga Chromium vía Puppeteer en `npm install`.
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Arkhand/mcp-notify/main/install.sh)
+```
+
+El script:
+- Detecta automáticamente si tu sistema tiene acceso a Telegram y/o Chrome para WhatsApp
+- Pregunta las credenciales del proveedor elegido
+- Instala dependencias, compila y prueba la conexión
+- Registra el MCP en Claude Code (`claude mcp add`)
+- Ofrece configurar los hooks automáticos (Stop + Notification)
+
+> **Requisito:** Node.js >= 18.17
 
 ---
 
-## Instalación
+## Instalación manual
 
-```bash
-npm install
-npm run build
-```
+## Requisitos
+
+- **Node.js >= 18.17** (usa `fetch` nativo).
+- Para WhatsApp: Chrome o Chromium instalado en el sistema.
+- Para Telegram: acceso HTTPS saliente a `api.telegram.org`.
 
 ---
 
