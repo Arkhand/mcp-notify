@@ -134,8 +134,12 @@ if [[ "$SKIP_ENV" == "false" ]]; then
   if [[ "$PROVIDER" == "telegram" ]]; then
     echo -e "${B}── Configuración de Telegram ──────────────────────${N}"
     echo ""
-    echo "   1) TOKEN del bot: lo da @BotFather al crear el bot."
-    echo "      Formato: 123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    echo "   1) TOKEN del bot:"
+    echo "      · Abrí Telegram y hablá con @BotFather"
+    echo "      · Enviá /newbot y seguí las instrucciones"
+    echo "        (pedirá un nombre y un username terminado en 'bot')"
+    echo "      · BotFather te da un token tipo:"
+    echo "        123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     echo ""
     read -r -p "   Token del bot: " BOT_TOKEN
 
