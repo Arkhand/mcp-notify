@@ -133,11 +133,25 @@ fi
 if [[ "$SKIP_ENV" == "false" ]]; then
   if [[ "$PROVIDER" == "telegram" ]]; then
     echo -e "${B}── Configuración de Telegram ──────────────────────${N}"
-    echo "   Necesitás el token del bot (@BotFather) y tu Chat ID."
-    echo "   (Si no los tenés, seguí las instrucciones del README)"
+    echo ""
+    echo "   1) TOKEN del bot: lo da @BotFather al crear el bot."
+    echo "      Formato: 123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     echo ""
     read -r -p "   Token del bot: " BOT_TOKEN
-    read -r -p "   Chat ID:       " CHAT_ID
+
+    echo ""
+    echo "   2) CHAT ID: es tu ID numérico personal (no el nombre del bot)."
+    echo "      Para obtenerlo: mandá cualquier mensaje a tu bot y abrí en el"
+    echo "      navegador → https://api.telegram.org/bot<TOKEN>/getUpdates"
+    echo "      Buscá: \"chat\":{\"id\":<NÚMERO>}  ← ese número es el Chat ID"
+    echo ""
+    CHAT_ID=""
+    while [[ ! "$CHAT_ID" =~ ^-?[0-9]+$ ]]; do
+      read -r -p "   Chat ID (número): " CHAT_ID
+      if [[ ! "$CHAT_ID" =~ ^-?[0-9]+$ ]]; then
+        echo -e "   ${R}✗ El Chat ID debe ser un número (ej: 7052630840). Intentá de nuevo.${N}"
+      fi
+    done
     cat > .env <<EOF
 NOTIFICATION_PROVIDER=telegram
 TELEGRAM_BOT_TOKEN=${BOT_TOKEN}
