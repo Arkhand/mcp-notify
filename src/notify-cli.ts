@@ -14,15 +14,16 @@
  *   node dist/notify-cli.js unmute           [carpeta]   -> reactiva
  *   node dist/notify-cli.js status           [carpeta]   -> muestra el estado
  *
+ * Passing `--all` as the folder mutes everything (every folder and the MCP tool);
+ * `unmute --all` clears every mute, global and per-folder.
+ *
  * Activo por defecto; sólo se silencian las carpetas del estado (~/.mcp-notify-state.json).
  */
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { loadConfig } from "./config.js";
 import { createProvider } from "./providers/index.js";
-
-const STATE_PATH = join(homedir(), ".mcp-notify-state.json");
+import { STATE_PATH, GLOBAL_DIR } from "./global-mute.js";
 
 /** until: null = permanente; número = epoch ms hasta el que está silenciado. */
 interface MuteEntry {
@@ -39,6 +40,7 @@ interface HookInput {
 }
 
 function normalizeDir(dir: string): string {
+  if (dir === "--all" || dir === GLOBAL_DIR) return GLOBAL_DIR;
   let d = resolve(dir).replace(/[\\/]+$/, "");
   if (process.platform === "win32") d = d.toLowerCase();
   return d;
@@ -85,8 +87,14 @@ function saveState(state: State): void {
 function activeMuteFor(dir: string, now: number): MuteEntry | undefined {
   const target = normalizeDir(dir);
   return loadState().mutes.find(
-    (m) => normalizeDir(m.dir) === target && (m.until === null || m.until > now),
+    (m) =>
+      (m.dir === GLOBAL_DIR || normalizeDir(m.dir) === target) &&
+      (m.until === null || m.until > now),
   );
+}
+
+function describeDir(dir: string): string {
+  return dir === GLOBAL_DIR ? "TODAS las carpetas (global)" : dir;
 }
 
 function formatRemaining(until: number, now: number): string {
@@ -141,7 +149,7 @@ function handleManagementCommand(event: string): void {
     state.mutes.push({ dir, until });
     saveState(state);
     process.stdout.write(
-      `🔕 Notificaciones SILENCIADAS por ${formatRemaining(until, now)} (se reactivan solas) en:\n   ${dir}\n`,
+      `🔕 Notificaciones SILENCIADAS por ${formatRemaining(until, now)} (se reactivan solas) en:\n   ${describeDir(dir)}\n`,
     );
     return;
   }
@@ -154,29 +162,33 @@ function handleManagementCommand(event: string): void {
     state.mutes = state.mutes.filter((m) => normalizeDir(m.dir) !== dir);
     state.mutes.push({ dir, until: null });
     saveState(state);
-    process.stdout.write(`🔕 Notificaciones SILENCIADAS (sin límite) en:\n   ${dir}\n`);
+    process.stdout.write(`🔕 Notificaciones SILENCIADAS (sin límite) en:\n   ${describeDir(dir)}\n`);
   } else if (event === "unmute") {
     const before = state.mutes.length;
-    state.mutes = state.mutes.filter((m) => normalizeDir(m.dir) !== dir);
+    state.mutes =
+      dir === GLOBAL_DIR ? [] : state.mutes.filter((m) => normalizeDir(m.dir) !== dir);
     saveState(state);
     const changed = before !== state.mutes.length;
     process.stdout.write(
-      `🔔 Notificaciones ACTIVADAS${changed ? "" : " (ya estaban activas)"} en:\n   ${dir}\n`,
+      `🔔 Notificaciones ACTIVADAS${changed ? "" : " (ya estaban activas)"} en:\n   ${describeDir(dir)}\n`,
     );
   } else {
     // status
-    const mine = state.mutes.find((m) => normalizeDir(m.dir) === dir);
+    const mine =
+      state.mutes.find((m) => m.dir === GLOBAL_DIR) ??
+      state.mutes.find((m) => normalizeDir(m.dir) === dir);
+    const scope = mine?.dir === GLOBAL_DIR ? " por silencio global" : "";
     const label = !mine
       ? "🔔 activa (por defecto)"
       : mine.until === null
-        ? "🔕 silenciada (sin límite)"
-        : `🔕 silenciada (vuelve en ${formatRemaining(mine.until, now)})`;
+        ? `🔕 silenciada${scope} (sin límite)`
+        : `🔕 silenciada${scope} (vuelve en ${formatRemaining(mine.until, now)})`;
     process.stdout.write(`Estado de esta carpeta: ${label}\n   ${dir}\n`);
     saveState(state); // de paso limpia vencidas
     if (state.mutes.length > 0) {
       const lines = state.mutes.map((m) => {
         const extra = m.until === null ? "sin límite" : `vuelve en ${formatRemaining(m.until, now)}`;
-        return `   - ${m.dir} (${extra})`;
+        return `   - ${describeDir(m.dir)} (${extra})`;
       });
       process.stdout.write(`\nCarpetas silenciadas:\n${lines.join("\n")}\n`);
     } else {

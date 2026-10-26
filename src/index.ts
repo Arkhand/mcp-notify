@@ -5,6 +5,7 @@ import { z } from "zod";
 import { loadConfig, runInteractiveSetup, type AppConfig } from "./config.js";
 import { createProvider, type NotificationProvider } from "./providers/index.js";
 import { log } from "./logger.js";
+import { isGloballyMuted } from "./global-mute.js";
 
 const SETUP_FLAG = process.argv.includes("--setup");
 
@@ -88,6 +89,13 @@ async function main(): Promise<void> {
       },
     },
     async ({ message, context }) => {
+      if (isGloballyMuted(Date.now())) {
+        return {
+          content: [
+            { type: "text" as const, text: "Notificaciones silenciadas globalmente; no se envió nada." },
+          ],
+        };
+      }
       try {
         await provider.send(message, context);
         return {
