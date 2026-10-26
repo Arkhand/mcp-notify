@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "C:\\Users\\musia\\tools\\mcp-notify\\dist\\notify-cli.js",
+              "stop"
+            ],
+            "timeout": 20,
+            "statusMessage": "Avisando por Telegram (fin de tarea)…",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "C:\\Users\\musia\\tools\\mcp-notify\\dist\\notify-cli.js",
+              "notification"
+            ],
+            "timeout": 20,
+            "statusMessage": "Avisando por Telegram (atención requerida)…",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

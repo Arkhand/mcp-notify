@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "notify": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "C:\\Users\\musia\\tools\\mcp-notify\\dist\\index.js"
+      ],
+      "env": {}
+    }
+  }
+}

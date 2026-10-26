@@ -1,5 +1,7 @@
 # mcp-notify
 
+> **⚠️ Deprecado (2026-10-25).** Este proyecto queda reemplazado por los avisos de Telegram de [Claude Code Widget](https://github.com/Arkhand/claude-code-widget) (2.7.0 en adelante): el widget avisa al celular solo si no respondés a tiempo o estás lejos de la compu, y se configura desde su menú (sin `.env` ni hooks propios). No se mantiene más.
+
 Servidor [MCP](https://modelcontextprotocol.io) que **envía una notificación cuando Claude necesita hacerte una pregunta bloqueante**, para que no tengas que estar mirando la terminal.
 
 Expone un único tool, `notify_question`, y soporta dos proveedores de notificación:
